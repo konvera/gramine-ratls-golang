@@ -38,10 +38,13 @@ func setup() {
 	}
 	certPem = certFile
 
-	mrenclave, _ = hex.DecodeString("fc1cde4925d73140be35d2a3e7de0588188b8bff7622648719bcfe3c7a5bc97f")
-	mrsigner, _ = hex.DecodeString("39a3807530c976387e90a3134ea8bec28bcb4857e79db3ab5eb0e7df6996608e")
+	mrenclave, _ = hex.DecodeString("f94ccbe6a504676b2edbefdcb8781a512913f7d8864c6f88592a843d0f9d4a66")
+	mrsigner, _ = hex.DecodeString("285dd1a739713e723e46f5964310423e21ed08d6d966f890ccb1d4ef9ddec9dd")
 	isv_prod_id = []byte{0, 0}
 	isv_svn, _ = hex.DecodeString("0000")
+
+	// Set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable to 1
+	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
 
 	fmt.Printf("\033[1;33m%s\033[0m", "> Setup completed\n")
 }
@@ -254,10 +257,10 @@ func Test_RATLSVerify_CertificateWithMeasurements(t *testing.T) {
 
 func Test_RATLSVerify_NoCertificate(t *testing.T) {
 	err := RATLSVerify(nil, nil, nil, nil, nil)
-	assert.Equal(t, err.Error(), fmt.Sprintf("Empty PEM certificate!"))
+	assert.Equal(t, err.Error(), "empty PEM certificate")
 }
 
 func Test_RATLSVerify_InvalidCertificate(t *testing.T) {
 	err := RATLSVerify(MockPEMCertificate(), nil, nil, nil, nil)
-	assert.Equal(t, err.Error(), fmt.Sprintf("failed to decode PEM data"))
+	assert.Equal(t, err.Error(), "failed to decode PEM data")
 }

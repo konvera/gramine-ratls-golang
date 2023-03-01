@@ -113,12 +113,15 @@ import (
 
 var ra_tls_verify_callback_der_f unsafe.Pointer
 
+// Imports Gramine RA-TLS libraries required to register the callbacks for Quote verification
+// and enclave measurement arguments
 func init() {
 	logrus.SetFormatter(&logrus.TextFormatter{
 		DisableTimestamp: true,
 	})
 	logrus.SetLevel(logrus.DebugLevel)
 
+	// import RA-TLS libraries
 	helper_sgx_urts_lib_name := "libsgx_urts.so"
 	helper_sgx_urts_lib_sym := C.CString("libsgx_urts.so")
 	defer C.free(unsafe.Pointer(helper_sgx_urts_lib_sym))
@@ -155,6 +158,7 @@ func init() {
 	C.ra_tls_set_measurement_callback_wrapper(ra_tls_set_measurement_callback_f)
 }
 
+// Sets enclave measurement vertification values, set if not null
 func set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn []byte) {
 	if len(mrenclave) == 0 {
 		C.set_g_verify_mrenclave(false)
@@ -185,7 +189,7 @@ func set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn
 	}
 }
 
-// Verifies RA-TLS attestation x509 DER certificate along with measurement args
+// Verifies RA-TLS attestation x.509 DER certificate along with measurement args
 func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
 	// check for null for each measurement verification
 	set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn)
@@ -204,10 +208,10 @@ func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) e
 	return nil
 }
 
-// Verifies RA-TLS attestation x509 PEM certificate
+// Verifies RA-TLS attestation x.509 PEM certificate
 func RATLSVerify(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
 	if len(cert) == 0 {
-		return errors.New("Empty PEM certificate!")
+		return errors.New("empty PEM certificate")
 	}
 
 	block, _ := pem.Decode(cert)
