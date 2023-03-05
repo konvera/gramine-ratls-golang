@@ -1,4 +1,4 @@
-package gramine_ratls
+package gramine_ratls_test
 
 import (
 	"crypto/rand"

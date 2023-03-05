@@ -21,7 +21,7 @@ func RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) erro
 
 `RATLSVerifyDer` verifies a DER-encoded RA-TLS certificate using the given `mrenclave`, `mrsigner`, `isv_prod_id`, and `isv_svn`. If the certificate is valid, this function returns `nil`. If the certificate is invalid, this function returns an error describing the validation failure.
 
-> Note that enclave measurement arguments can be *optional* depending on the measurement callback defined as per usage.
+> Note that enclave measurement arguments can be set to *nil*, which causes the verification method to ignore that particular measurement.
 
 ### RATLSVerify
 
