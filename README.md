@@ -11,9 +11,11 @@ More info about the core library can be found at the official gramine [docs](htt
 
 ## Functions
 
+### Verification
+
 The wrapper provides two functions for verifying RATLS certificates:
 
-### RATLSVerifyDer
+#### RATLSVerifyDer
 
 ```go
 func RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error
@@ -23,7 +25,7 @@ func RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) erro
 
 > Note that enclave measurement arguments can be set to *nil*, which causes the verification method to ignore that particular measurement.
 
-### RATLSVerify
+#### RATLSVerify
 
 ```go
 func RATLSVerify(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error
@@ -39,9 +41,13 @@ To use RA-TLS wrapper, you must have Go installed on your system. You can then i
 go get github.com/konvera/gramine-ratls-golang
 ```
 
+## Initialisation
+
+The wrapper exposes initilisation functions: [`LoadRATLSAttestLibs`](./gramine_ratls_attest.go#L28) [`LoadRATLSVerifyLibs`](./gramine_ratls_verify.go#L124) which loads the **required** Gramine Remote Attestation libraries and should be called before using the RA-TLS functions for certificate creation or verification.
+
 ## Usage
 
-To use RA-TLS wrapper, import the `gramine_ratls` package and call the RATLSVerifyDer or RATLSVerify functions depending on the certificate:
+To use RA-TLS wrapper, import the `gramine_ratls` package and call the `RATLSVerifyDer` or `RATLSVerify` functions depending on the certificate encoding:
 
 ```go
 func main() {
@@ -64,3 +70,7 @@ func main() {
 In this example, we assume that we have a RATLS certificate in a byte slice called `cert`, and that we have the `mrenclave`, `mrsigner`, `isv_prod_id`, and `isv_svn` values in byte slices. We call the `RATLSVerifyDer` function to verify the certificate.
 
 More info about examples and usage can be found at the [tests](./gramine_ratls_test.go) defined in the repository.
+
+## Logging
+
+The wrapper utilises official `log` package and uses environment variable `DEBUG` to output logs.

@@ -106,21 +106,22 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"unsafe"
-
-	"github.com/sirupsen/logrus"
 )
 
 var ra_tls_verify_callback_der_f unsafe.Pointer
 
+func PrintDebug(args ...interface{}) {
+	if os.Getenv("DEBUG") == "1" {
+		log.Println(args)
+	}
+}
+
 // Imports Gramine RA-TLS libraries required to register the callbacks for Quote verification
 // and enclave measurement arguments
-func init() {
-	logrus.SetFormatter(&logrus.TextFormatter{
-		DisableTimestamp: true,
-	})
-	logrus.SetLevel(logrus.DebugLevel)
-
+func LoadRATLSVerifyLibs() {
 	// import RA-TLS libraries
 	helper_sgx_urts_lib_name := "libsgx_urts.so"
 	helper_sgx_urts_lib_sym := C.CString("libsgx_urts.so")
@@ -191,6 +192,10 @@ func set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn
 
 // Verifies RA-TLS attestation x.509 DER certificate along with measurement args
 func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
+	if ra_tls_verify_callback_der_f == nil {
+		l.Fatal("RA-TLS Verification libraries not loaded. Use the desired function: LoadRATLSVerifyLibs")
+	}
+
 	// check for null for each measurement verification
 	set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn)
 
@@ -200,7 +205,7 @@ func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) e
 
 	ret := C.ra_tls_verify_callback_der_wrapper(ra_tls_verify_callback_der_f, (*C.uchar)(certDER_sym), cert_size)
 
-	logrus.Debug("Result: ", ret)
+	PrintDebug("Result: ", ret)
 	if ret != 0 {
 		return ErrorCode(ret)
 	}
@@ -210,6 +215,7 @@ func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) e
 
 // Verifies RA-TLS attestation x.509 PEM certificate
 func RATLSVerify(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
+
 	if len(cert) == 0 {
 		return errors.New("empty PEM certificate")
 	}
