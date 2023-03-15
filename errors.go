@@ -26,6 +26,15 @@ const (
 
 	// Allocation of memory failed.
 	MBEDTLS_ERR_X509_ALLOC_FAILED ErrorCode = -0x2880
+
+	// Entropy Source Failed
+	MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED ErrorCode = -0x0034
+
+	// Bad input parameters to function.
+	MBEDTLS_ERR_PK_BAD_INPUT_DATA ErrorCode = -0x3E80
+
+	// Memory Allocation Failed
+	MBEDTLS_ERR_PK_ALLOC_FAILED ErrorCode = -0x3F80
 )
 
 // Message returns the status code message
@@ -50,6 +59,6 @@ func (o ErrorCode) Error() string {
 		return fmt.Sprintf("Allocation of memory failed: %d", o)
 
 	default:
-		return "UNKNOWN"
+		return fmt.Sprintf("UNKNOWN: %d", o)
 	}
 }

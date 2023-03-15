@@ -11,6 +11,16 @@ More info about the core library can be found at the official gramine [docs](htt
 
 ## Functions
 
+### Attestation
+
+#### RATLSCreateKeyAndCrtDer
+
+```go
+func RATLSCreateKeyAndCrtDer() error
+```
+
+Creates RA-TLS Certificate and Key required for remote attestation at location specified using enviornment variables: `RATLS_CRT_PATH` and `RATLS_KEY_PATH`.
+
 ### Verification
 
 The wrapper provides two functions for verifying RATLS certificates:
