@@ -8,108 +8,91 @@ package gramine_ratls
 // #include <string.h>
 // #include <stdio.h>
 //
-// int ra_tls_create_key_and_crt_der_wrapper(void* f, u_int8_t** der_crt, size_t* der_crt_size, u_int8_t** der_key, size_t* der_key_size) {
+// int ra_tls_create_key_and_crt_der_wrapper(void* f, u_int8_t** der_key, size_t* der_key_size, u_int8_t** der_crt, size_t* der_crt_size) {
 //      int ( * ra_tls_create_key_and_crt_der)(u_int8_t**, size_t*, u_int8_t**, size_t*);
 //      ra_tls_create_key_and_crt_der = (int (*)(u_int8_t**, size_t*, u_int8_t**, size_t*)) f;
-//      return ra_tls_create_key_and_crt_der(der_crt, der_crt_size, der_key, der_key_size);
+//      return ra_tls_create_key_and_crt_der(der_key, der_key_size, der_crt, der_crt_size);
 // }
 import "C"
 
 import (
-	"errors"
-	"fmt"
-	"log"
 	"os"
 	"unsafe"
 )
 
-var ra_tls_attest_create_key_and_crt_der_callback_f unsafe.Pointer
-
-func LoadRATLSAttestLibs() {
-	ra_tls_attest_lib_name := "libra_tls_attest.so"
-	ra_tls_attest_lib_sym := C.CString(ra_tls_attest_lib_name)
-	defer C.free(unsafe.Pointer(ra_tls_attest_lib_sym))
-	ra_tls_attest_lib := C.dlopen(ra_tls_attest_lib_sym, C.RTLD_LAZY)
-	if ra_tls_attest_lib == nil {
-		panic(fmt.Errorf("error opening %q", ra_tls_attest_lib_name))
-	}
-
-	ra_tls_attest_create_key_and_crt_name := "ra_tls_create_key_and_crt_der"
-	ra_tls_attest_create_key_and_crt_sym := C.CString(ra_tls_attest_create_key_and_crt_name)
-	defer C.free(unsafe.Pointer(ra_tls_attest_create_key_and_crt_sym))
-	ra_tls_attest_create_key_and_crt_der_callback_f = C.dlsym(ra_tls_attest_lib, ra_tls_attest_create_key_and_crt_sym)
-	if ra_tls_attest_create_key_and_crt_der_callback_f == nil {
-		panic(fmt.Errorf("error resolving %q function", ra_tls_attest_create_key_and_crt_name))
-	}
-}
-
-func getAttestationType() string {
+func getAttestationType() (string, error) {
 	attestationType, err := os.ReadFile("/dev/attestation/attestation_type")
 	if err != nil {
-		log.Fatal("RA-TLS attestation type file `/dev/attestation/attestation_type` not found")
-		return ""
+		PrintDebug("SGX RA-TLS attestation type file '/dev/attestation/attestation_type' not found")
+		return "", RATLS_WRAPPER_ERR_SGX_ATTESTATION_FILE
 	}
 
-	return string(attestationType)
+	return string(attestationType), nil
 }
 
-func RATLSCreateKeyAndCrtDer() error {
+func RATLSCreateKeyAndCrtDer(keyPath string, crtPath string) error {
 	if ra_tls_attest_create_key_and_crt_der_callback_f == nil {
-		log.Fatal("RA-TLS Attest libraries not loaded.")
+		PrintDebug("RA-TLS attest libraries not linked.")
+		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
-	attestationType := getAttestationType()
+	attestationType, err := getAttestationType()
+	if err != nil {
+		return err
+	}
+
 	switch attestationType {
 	case "none":
-		log.Println("Skipping certificate creation. Remote attestation type: ", attestationType)
-		return nil
+		PrintDebug("Skipping certificate creation. Remote attestation type: ", attestationType)
+		return RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	case "dcap":
 		var derCrt *C.uchar
-		var certLen C.size_t
+		var crtLen C.size_t
 		var derKey *C.uchar
-		var derLen C.size_t
+		var keyLen C.size_t
 
-		ret := C.ra_tls_create_key_and_crt_der_wrapper(ra_tls_attest_create_key_and_crt_der_callback_f, &derCrt, &certLen, &derKey, &derLen)
+		ret := C.ra_tls_create_key_and_crt_der_wrapper(ra_tls_attest_create_key_and_crt_der_callback_f, &derKey, &keyLen, &derCrt, &crtLen)
 
 		if ret != 0 {
-			log.Println("RATLSCreateKeyAndCrtDer failed with error ", ret)
+			PrintDebug("RATLSCreateKeyAndCrtDer failed with error ", ret)
 			// TODO: custom error type for ret
 			return ErrorCode(ret)
 		}
 
-		f, err := os.Create(os.Getenv("RATLS_CRT_PATH"))
+		f, err := os.Create(crtPath)
 		if err != nil {
-			log.Println("error creating DER Certificate ", err)
+			PrintDebug("error creating DER Certificate ", err)
 			return err
 		}
 		defer f.Close()
 
-		g, err := os.Create(os.Getenv("RATLS_KEY_PATH"))
+		g, err := os.Create(keyPath)
 		if err != nil {
-			log.Println("error creating DER Key ", err)
+			PrintDebug("error creating DER Key ", err)
 			return err
 		}
 		defer g.Close()
 
-		derCrtBytes := C.GoBytes(unsafe.Pointer(derCrt), C.int(certLen))
+		derCrtBytes := C.GoBytes(unsafe.Pointer(derCrt), C.int(crtLen))
 		_, err = f.Write(derCrtBytes)
 
 		if err != nil {
-			log.Println("error while writing Cert ", err)
+			PrintDebug("error while writing Cert ", err)
 			return err
 		}
 
-		derKeyBytes := C.GoBytes(unsafe.Pointer(derKey), C.int(derLen))
+		derKeyBytes := C.GoBytes(unsafe.Pointer(derKey), C.int(keyLen))
 		_, err = g.Write(derKeyBytes)
 
 		if err != nil {
-			log.Println("error while writing key ", err)
+			PrintDebug("error while writing key ", err)
 			return err
 		}
 
-		log.Println("Certificate and key creation succeded.")
+		PrintDebug("Certificate and key creation succeded.")
 	default:
-		return errors.New("Unknown remote attestation type")
+		PrintDebug("Certifiate creation with mentioned attestation type not supported.")
+		return RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	}
 
 	return nil

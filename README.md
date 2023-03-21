@@ -16,10 +16,10 @@ More info about the core library can be found at the official gramine [docs](htt
 #### RATLSCreateKeyAndCrtDer
 
 ```go
-func RATLSCreateKeyAndCrtDer() error
+func RATLSCreateKeyAndCrtDer(keyPath, crtPath string) error
 ```
 
-Creates RA-TLS Certificate and Key required for remote attestation at location specified using enviornment variables: `RATLS_CRT_PATH` and `RATLS_KEY_PATH`.
+Creates RA-TLS Certificate and Key required for remote attestation at location specified using following arguments: `keyPath` and `crtPath`.
 
 ### Verification
 
@@ -53,7 +53,7 @@ go get github.com/konvera/gramine-ratls-golang
 
 ## Initialisation
 
-The wrapper exposes initilisation functions: [`LoadRATLSAttestLibs`](./gramine_ratls_attest.go#L28) [`LoadRATLSVerifyLibs`](./gramine_ratls_verify.go#L124) which loads the **required** Gramine Remote Attestation libraries and should be called before using the RA-TLS functions for certificate creation or verification.
+The wrapper exposes initilisation functions: [`LoadRATLSLibs`](./gramine_ratls_verify.go#L124) which loads the **required** Gramine Remote Attestation libraries and should be called **before** using the RA-TLS functions for certificate creation or verification.
 
 ## Usage
 
