@@ -30,21 +30,21 @@ func getAttestationType() (string, error) {
 	return string(attestationType), nil
 }
 
-func RATLSCreateKeyAndCrtDer(keyPath string, crtPath string) error {
+func RATLSCreateKeyAndCrtDer() ([]byte, []byte, error) {
 	if ra_tls_attest_create_key_and_crt_der_callback_f == nil {
 		PrintDebug("RA-TLS attest libraries not linked.")
-		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
+		return nil, nil, RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
 	attestationType, err := getAttestationType()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	switch attestationType {
 	case "none":
 		PrintDebug("Skipping certificate creation. Remote attestation type: ", attestationType)
-		return RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
+		return nil, nil, RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	case "dcap":
 		var derCrt *C.uchar
 		var crtLen C.size_t
@@ -55,45 +55,16 @@ func RATLSCreateKeyAndCrtDer(keyPath string, crtPath string) error {
 
 		if ret != 0 {
 			PrintDebug("RATLSCreateKeyAndCrtDer failed with error ", ret)
-			// TODO: custom error type for ret
-			return ErrorCode(ret)
+			return nil, nil, ErrorCode(ret)
 		}
-
-		f, err := os.Create(crtPath)
-		if err != nil {
-			PrintDebug("error creating DER Certificate ", err)
-			return err
-		}
-		defer f.Close()
-
-		g, err := os.Create(keyPath)
-		if err != nil {
-			PrintDebug("error creating DER Key ", err)
-			return err
-		}
-		defer g.Close()
 
 		derCrtBytes := C.GoBytes(unsafe.Pointer(derCrt), C.int(crtLen))
-		_, err = f.Write(derCrtBytes)
-
-		if err != nil {
-			PrintDebug("error while writing Cert ", err)
-			return err
-		}
-
 		derKeyBytes := C.GoBytes(unsafe.Pointer(derKey), C.int(keyLen))
-		_, err = g.Write(derKeyBytes)
-
-		if err != nil {
-			PrintDebug("error while writing key ", err)
-			return err
-		}
 
 		PrintDebug("Certificate and key creation succeded.")
+		return derKeyBytes, derCrtBytes, nil
 	default:
 		PrintDebug("Certifiate creation with mentioned attestation type not supported.")
-		return RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
+		return nil, nil, RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	}
-
-	return nil
 }

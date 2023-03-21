@@ -276,7 +276,7 @@ func Test_RATLSVerify_InvalidCertificate(t *testing.T) {
 
 func Test_RATLSCreateKeyAndCrtDer(t *testing.T) {
 	t.Run("it should fail with no sgx attestation file found", func(t *testing.T) {
-		err := ratls_wrapper.RATLSCreateKeyAndCrtDer("./tlscert.der", "./tlskey.der")
+		_, _, err := ratls_wrapper.RATLSCreateKeyAndCrtDer()
 		assert.Equal(t, err, ratls_wrapper.RATLS_WRAPPER_ERR_SGX_ATTESTATION_FILE)
 	})
 }

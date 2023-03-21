@@ -1,6 +1,6 @@
 # Gramine-RATLS-Wrapper
 
-Gramine-RATLS-Wrapper is a Go wrapper on top of the [Gramine](https://github.com/gramineproject/gramine) [Remote Attestation TLS](https://github.com/gramineproject/gramine/tree/master/tools/sgx/ra-tls) (RATLS) library. Forwards the certificate and SGX quote to the DCAP verification service. It also verifies SGX specific measurement variables that are used to verify the identity of the enclave, namely:
+Gramine-RATLS-Wrapper is a Go wrapper on top of the [Gramine](https://github.com/gramineproject/gramine) [Remote Attestation TLS](https://github.com/gramineproject/gramine/tree/master/tools/sgx/ra-tls) (RATLS) library. This wrapper provides functionality for creation of certificate and key used for Remote Attestation and Verification of the quote sent using the certificate by forwarding it to the RA verification service. It also verifies SGX specific measurement variables that are used to verify the identity of the enclave, namely:
 
 1. `MRENCLAVE`: 32 byte hex string that verifes attesting enclave.
 2. `MRSIGNER`: 32 byte hex string that verifies the key used to sign the enclave.
@@ -16,10 +16,11 @@ More info about the core library can be found at the official gramine [docs](htt
 #### RATLSCreateKeyAndCrtDer
 
 ```go
-func RATLSCreateKeyAndCrtDer(keyPath, crtPath string) error
+// Returns Key, Certificate, Error
+func RATLSCreateKeyAndCrtDer() ([]byte, []byte, error)
 ```
 
-Creates RA-TLS Certificate and Key required for remote attestation at location specified using following arguments: `keyPath` and `crtPath`.
+Creates DER encoded RA-TLS Key and Certificate required for remote attestation in an SGX enclave and return key, certificate and error in the respective order. Currently only [DCAP](https://github.com/intel/SGXDataCenterAttestationPrimitives) remote attestation type is supported.
 
 ### Verification
 
@@ -53,31 +54,36 @@ go get github.com/konvera/gramine-ratls-golang
 
 ## Initialisation
 
-The wrapper exposes initilisation functions: [`LoadRATLSLibs`](./gramine_ratls_verify.go#L124) which loads the **required** Gramine Remote Attestation libraries and should be called **before** using the RA-TLS functions for certificate creation or verification.
+The wrapper exposes initilisation function: [`LoadRATLSLibs`](./gramine_ratls_verify.go#L132) which loads the **required** Gramine Remote Attestation libraries and should be called **before** using the RA-TLS functions for certificate creation or verification.
 
 ## Usage
 
-To use RA-TLS wrapper, import the `gramine_ratls` package and call the `RATLSVerifyDer` or `RATLSVerify` functions depending on the certificate encoding:
+To use RA-TLS wrapper, import the `gramine_ratls` package and call the `RATLSCreateKeyAndCrtDer`, `RATLSVerifyDer` or `RATLSVerify` functions depending on the certificate encoding:
 
 ```go
 func main() {
- // Assume that we have a RATLS certificate in a byte slice called "cert"
- // Here we use example values for the measurement args
- mrenclave, _ = hex.DecodeString("f94ccbe6a504676b2edbefdcb8781a512913f7d8864c6f88592a843d0f9d4a66")
- mrsigner, _ = hex.DecodeString("285dd1a739713e723e46f5964310423e21ed08d6d966f890ccb1d4ef9ddec9dd")
- isv_prod_id = []byte{0, 1}
- isv_svn, _ = []byte{0, 1}
+    // Key and Certificate creation
+    key, crt, err := gramine_ratls.RATLSCreateKeyAndCrtDer()
 
- err := gramine_ratls.RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn)
- if err != nil {
-  fmt.Printf("Certificate verification failed: %v\n", err)
- } else {
-  fmt.Println("Certificate verified successfully.")
- }
+    // Assume that we have a RATLS certificate in a byte slice called "cert"
+    // Here we use example values for the measurement args
+    mrenclave, _ = hex.DecodeString("f94ccbe6a504676b2edbefdcb8781a512913f7d8864c6f88592a843d0f9d4a66")
+    mrsigner, _ = hex.DecodeString("285dd1a739713e723e46f5964310423e21ed08d6d966f890ccb1d4ef9ddec9dd")
+    isv_prod_id = []byte{0, 1}
+    isv_svn, _ = []byte{0, 1}
+
+    // Certificate verification
+    err := gramine_ratls.RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn)
+    if err != nil {
+     fmt.Printf("Certificate verification failed: %v\n", err)
+    } else {
+    fmt.Println("Certificate verified successfully.")
+}
+
 }
 ```
 
-In this example, we assume that we have a RATLS certificate in a byte slice called `cert`, and that we have the `mrenclave`, `mrsigner`, `isv_prod_id`, and `isv_svn` values in byte slices. We call the `RATLSVerifyDer` function to verify the certificate.
+In this example, we create DER encoded TLS key and certificate, namely `key`, `crt` using `RATLSCreateKeyAndCrtDer` and also verify another certificate `cert`. Assume that we have a RATLS certificate in a byte slice called `cert`, along with the `mrenclave`, `mrsigner`, `isv_prod_id`, and `isv_svn` values in byte slices. We call the `RATLSVerifyDer` function to verify the certificate.
 
 More info about examples and usage can be found at the [tests](./gramine_ratls_test.go) defined in the repository.
 

@@ -110,16 +110,9 @@ import (
 	"unsafe"
 )
 
-var Debug bool
+var Debug bool = os.Getenv("DEBUG") == "1"
 var ra_tls_verify_callback_der_f unsafe.Pointer
 var ra_tls_attest_create_key_and_crt_der_callback_f unsafe.Pointer
-
-func init() {
-	Debug = false
-	if os.Getenv("DEBUG") == "1" {
-		Debug = true
-	}
-}
 
 func PrintDebug(args ...interface{}) {
 	if Debug {
