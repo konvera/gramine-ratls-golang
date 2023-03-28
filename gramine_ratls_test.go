@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	ratls_wrapper "github.com/konvera/gramine-ratls-golang"
 )
 
 // RA-TLS Certificate
@@ -26,6 +28,16 @@ var isv_prod_id []byte
 var isv_svn []byte
 
 func setup() {
+	// Set DEBUG flag for logs
+	os.Setenv("DEBUG", "1")
+
+	// Set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable because
+	// the unit tests are working with a potentially out of date attestation quote
+	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
+
+	// Load Gramine RATLS required libraries
+	ratls_wrapper.LoadRATLSLibs()
+
 	certFile, err := os.ReadFile("test/tls/tlscert.der")
 	if err != nil {
 		panic("error in opening file")
@@ -42,9 +54,6 @@ func setup() {
 	mrsigner, _ = hex.DecodeString("285dd1a739713e723e46f5964310423e21ed08d6d966f890ccb1d4ef9ddec9dd")
 	isv_prod_id = []byte{0, 0}
 	isv_svn, _ = hex.DecodeString("0000")
-
-	// Set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable to 1
-	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
 
 	fmt.Printf("\033[1;33m%s\033[0m", "> Setup completed\n")
 }
@@ -105,7 +114,7 @@ func TestMain(m *testing.M) {
 
 func Test_RATLSVerifyDer_Certificate(t *testing.T) {
 	t.Run("it should verify certificate with empty measurement args", func(t *testing.T) {
-		err := RATLSVerifyDer(certDer, nil, nil, nil, nil)
+		err := ratls_wrapper.RATLSVerifyDer(certDer, nil, nil, nil, nil)
 		assert.Nil(t, err)
 	})
 }
@@ -157,7 +166,7 @@ func Test_RATLSVerifyDer_CertificateWithMeasurements(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := RATLSVerifyDer(certDer, tt.mrenclave, tt.mrsigner, tt.isv_prod_id, tt.isv_svn)
+			err := ratls_wrapper.RATLSVerifyDer(certDer, tt.mrenclave, tt.mrsigner, tt.isv_prod_id, tt.isv_svn)
 			assert.Nil(t, err)
 		})
 	}
@@ -203,8 +212,8 @@ func Test_RATLSVerifyDer_IncorrectMeasurements(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := RATLSVerifyDer(certDer, tt.mrenclave, tt.mrsigner, tt.isv_prod_id, tt.isv_svn)
-			assert.Equal(t, err, MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
+			err := ratls_wrapper.RATLSVerifyDer(certDer, tt.mrenclave, tt.mrsigner, tt.isv_prod_id, tt.isv_svn)
+			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
 		})
 	}
 }
@@ -222,8 +231,8 @@ func Test_RATLSVerifyDer_IncorrectCertificate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("it should invalid format error", func(t *testing.T) {
-			err := RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
-			assert.Equal(t, err, MBEDTLS_ERR_X509_INVALID_FORMAT)
+			err := ratls_wrapper.RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
+			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_INVALID_FORMAT)
 		})
 	}
 }
@@ -239,28 +248,35 @@ func Test_RATLSVerifyDer_MockCertificate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("it should invalid extension error", func(t *testing.T) {
-			err := RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
-			assert.Equal(t, err, MBEDTLS_ERR_X509_INVALID_EXTENSIONS)
+			err := ratls_wrapper.RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
+			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_INVALID_EXTENSIONS)
 		})
 	}
 }
 
 func Test_RATLSVerify_Certificate(t *testing.T) {
-	err := RATLSVerify(certPem, nil, nil, nil, nil)
+	err := ratls_wrapper.RATLSVerify(certPem, nil, nil, nil, nil)
 	assert.Nil(t, err)
 }
 
 func Test_RATLSVerify_CertificateWithMeasurements(t *testing.T) {
-	err := RATLSVerify(certPem, mrenclave, mrsigner, isv_prod_id, isv_svn)
+	err := ratls_wrapper.RATLSVerify(certPem, mrenclave, mrsigner, isv_prod_id, isv_svn)
 	assert.Nil(t, err)
 }
 
 func Test_RATLSVerify_NoCertificate(t *testing.T) {
-	err := RATLSVerify(nil, nil, nil, nil, nil)
-	assert.Equal(t, err.Error(), "empty PEM certificate")
+	err := ratls_wrapper.RATLSVerify(nil, nil, nil, nil, nil)
+	assert.Equal(t, err, ratls_wrapper.RATLS_WRAPPER_ERR_INVALID_CERT)
 }
 
 func Test_RATLSVerify_InvalidCertificate(t *testing.T) {
-	err := RATLSVerify(MockPEMCertificate(), nil, nil, nil, nil)
-	assert.Equal(t, err.Error(), "failed to decode PEM data")
+	err := ratls_wrapper.RATLSVerify(MockPEMCertificate(), nil, nil, nil, nil)
+	assert.Equal(t, err, ratls_wrapper.RATLS_WRAPPER_ERR_CERT_DECODE_FAILED)
+}
+
+func Test_RATLSCreateKeyAndCrtDer(t *testing.T) {
+	t.Run("it should fail with no sgx attestation file found", func(t *testing.T) {
+		_, _, err := ratls_wrapper.RATLSCreateKeyAndCrtDer()
+		assert.Equal(t, err, ratls_wrapper.RATLS_WRAPPER_ERR_SGX_ATTESTATION_FILE)
+	})
 }
