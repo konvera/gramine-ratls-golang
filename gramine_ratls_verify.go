@@ -105,20 +105,16 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"log"
-	"os"
 	"unsafe"
+
+	"github.com/konvera/gramine-ratls-golang/cache"
+	"github.com/konvera/gramine-ratls-golang/utils"
 )
 
-var Debug bool = os.Getenv("DEBUG") == "1"
 var ra_tls_verify_callback_der_f unsafe.Pointer
 var ra_tls_attest_create_key_and_crt_der_callback_f unsafe.Pointer
 
-func PrintDebug(args ...interface{}) {
-	if Debug {
-		log.Println(args...)
-	}
-}
+var certCache cache.Cache
 
 // Imports Gramine RA-TLS libraries required to register the callbacks for Quote
 // verification, generation and enclave measurement arguments
@@ -129,7 +125,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(helper_sgx_urts_lib_sym))
 	helper_sgx_urts_lib := C.dlopen(helper_sgx_urts_lib_sym, C.RTLD_LAZY)
 	if helper_sgx_urts_lib == nil {
-		PrintDebug(fmt.Errorf("error opening %q", helper_sgx_urts_lib_name))
+		utils.PrintDebug(fmt.Errorf("error opening %q", helper_sgx_urts_lib_name))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -138,7 +134,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(ra_tls_verify_lib_sym))
 	ra_tls_verify_lib := C.dlopen(ra_tls_verify_lib_sym, C.RTLD_LAZY)
 	if ra_tls_verify_lib == nil {
-		PrintDebug(fmt.Errorf("error opening %q", ra_tls_verify_lib_name))
+		utils.PrintDebug(fmt.Errorf("error opening %q", ra_tls_verify_lib_name))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -147,7 +143,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(ra_tls_verify_callback_der_sym))
 	ra_tls_verify_callback_der_f = C.dlsym(ra_tls_verify_lib, ra_tls_verify_callback_der_sym)
 	if ra_tls_verify_callback_der_f == nil {
-		PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_verify_callback_der_name))
+		utils.PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_verify_callback_der_name))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -156,7 +152,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(ra_tls_set_measurement_callback_sym))
 	ra_tls_set_measurement_callback_f := C.dlsym(ra_tls_verify_lib, ra_tls_set_measurement_callback_sym)
 	if ra_tls_set_measurement_callback_f == nil {
-		PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_set_measurement_callback))
+		utils.PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_set_measurement_callback))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -165,7 +161,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(ra_tls_attest_lib_sym))
 	ra_tls_attest_lib := C.dlopen(ra_tls_attest_lib_sym, C.RTLD_LAZY)
 	if ra_tls_attest_lib == nil {
-		PrintDebug(fmt.Errorf("error opening %q", ra_tls_attest_lib_name))
+		utils.PrintDebug(fmt.Errorf("error opening %q", ra_tls_attest_lib_name))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -174,7 +170,7 @@ func LoadRATLSLibs() error {
 	defer C.free(unsafe.Pointer(ra_tls_attest_create_key_and_crt_sym))
 	ra_tls_attest_create_key_and_crt_der_callback_f = C.dlsym(ra_tls_attest_lib, ra_tls_attest_create_key_and_crt_sym)
 	if ra_tls_attest_create_key_and_crt_der_callback_f == nil {
-		PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_attest_create_key_and_crt_name))
+		utils.PrintDebug(fmt.Errorf("error resolving %q function", ra_tls_attest_create_key_and_crt_name))
 		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -217,21 +213,27 @@ func set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn
 
 // Verifies RA-TLS attestation x.509 DER certificate along with measurement args
 func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
-	if ra_tls_verify_callback_der_f == nil {
-		PrintDebug("RA-TLS Verification libraries not loaded. Use the desired function: LoadRATLSVerifyLibs")
-		return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
+	ret, err := certCache.Read(certDER)
+
+	if err != nil {
+		if ra_tls_verify_callback_der_f == nil {
+			utils.PrintDebug("RA-TLS Verification libraries not loaded. Use the desired function: LoadRATLSVerifyLibs")
+			return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
+		}
+
+		// check for null for each measurement verification
+		set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn)
+
+		cert_size := C.size_t(len(certDER))
+		certDER_sym := C.CBytes(certDER)
+		defer C.free(unsafe.Pointer(certDER_sym))
+
+		ret = int(C.ra_tls_verify_callback_der_wrapper(ra_tls_verify_callback_der_f, (*C.uchar)(certDER_sym), cert_size))
+
+		certCache.Add(certDER, ret)
 	}
 
-	// check for null for each measurement verification
-	set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn)
-
-	cert_size := C.size_t(len(certDER))
-	certDER_sym := C.CBytes(certDER)
-	defer C.free(unsafe.Pointer(certDER_sym))
-
-	ret := C.ra_tls_verify_callback_der_wrapper(ra_tls_verify_callback_der_f, (*C.uchar)(certDER_sym), cert_size)
-
-	PrintDebug("Certificate Verification Result: ", ret)
+	utils.PrintDebug("Certificate Verification Result: ", ret)
 	if ret != 0 {
 		return ErrorCode(ret)
 	}
