@@ -105,6 +105,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/konvera/gramine-ratls-golang/cache"
@@ -114,11 +115,12 @@ import (
 var ra_tls_verify_callback_der_f unsafe.Pointer
 var ra_tls_attest_create_key_and_crt_der_callback_f unsafe.Pointer
 
-var certCache cache.Cache
+var CertCache *cache.Cache
 
-// Imports Gramine RA-TLS libraries required to register the callbacks for Quote
-// verification, generation and enclave measurement arguments
-func LoadRATLSLibs() error {
+// InitRATLSLib imports Gramine RA-TLS libraries required to register the callbacks for Quote
+// verification, generation and enclave measurement arguments. It also initialises the
+// cache used for storing certificate verification results.
+func InitRATLSLib(enabled bool, capacity int, timeoutInterval time.Duration, cacheFailures bool) error {
 	// import RA-TLS libraries
 	helper_sgx_urts_lib_name := "libsgx_urts.so"
 	helper_sgx_urts_lib_sym := C.CString("libsgx_urts.so")
@@ -177,6 +179,9 @@ func LoadRATLSLibs() error {
 	// set verify callback
 	C.ra_tls_set_measurement_callback_wrapper(ra_tls_set_measurement_callback_f)
 
+	// initialise cache
+	CertCache = cache.NewCache(enabled, capacity, timeoutInterval, cacheFailures)
+
 	return nil
 }
 
@@ -211,13 +216,13 @@ func set_measurement_verification_args(mrenclave, mrsigner, isv_prod_id, isv_svn
 	}
 }
 
-// Verifies RA-TLS attestation x.509 DER certificate along with measurement args
+// RATLSVerifyDer verifies RA-TLS attestation x.509 DER certificate along with measurement args
 func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
-	ret, err := certCache.Read(certDER)
+	ret, err := CertCache.Read(certDER)
 
 	if err != nil {
 		if ra_tls_verify_callback_der_f == nil {
-			utils.PrintDebug("RA-TLS Verification libraries not loaded. Use the desired function: LoadRATLSVerifyLibs")
+			utils.PrintDebug("RA-TLS Verification libraries not loaded. Use the desired function: InitRATLSLib")
 			return RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 		}
 
@@ -230,7 +235,7 @@ func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) e
 
 		ret = int(C.ra_tls_verify_callback_der_wrapper(ra_tls_verify_callback_der_f, (*C.uchar)(certDER_sym), cert_size))
 
-		certCache.Add(certDER, ret)
+		CertCache.Add(certDER, ret)
 	}
 
 	utils.PrintDebug("Certificate Verification Result: ", ret)
@@ -241,7 +246,7 @@ func RATLSVerifyDer(certDER, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) e
 	return nil
 }
 
-// Verifies RA-TLS attestation x.509 PEM certificate
+// RATLSVerify verifies RA-TLS attestation x.509 PEM certificate
 func RATLSVerify(cert, mrenclave, mrsigner, isv_prod_id, isv_svn []byte) error {
 
 	if len(cert) == 0 {

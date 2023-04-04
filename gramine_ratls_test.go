@@ -28,15 +28,15 @@ var isv_prod_id []byte
 var isv_svn []byte
 
 func setup() {
-	// Set DEBUG flag for logs
+	// set DEBUG flag for logs
 	os.Setenv("DEBUG", "1")
 
-	// Set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable because
+	// set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable because
 	// the unit tests are working with a potentially out of date attestation quote
 	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
 
-	// Load Gramine RATLS required libraries
-	ratls_wrapper.LoadRATLSLibs()
+	// init Gramine RATLS required lib
+	ratls_wrapper.InitRATLSLib(true, 10, time.Hour, false)
 
 	certFile, err := os.ReadFile("test/tls/tlscert.der")
 	if err != nil {
@@ -230,7 +230,7 @@ func Test_RATLSVerifyDer_IncorrectCertificate(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run("it should invalid format error", func(t *testing.T) {
+		t.Run("it should throw invalid format error", func(t *testing.T) {
 			err := ratls_wrapper.RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
 			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_INVALID_FORMAT)
 		})
@@ -247,7 +247,7 @@ func Test_RATLSVerifyDer_MockCertificate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("it should invalid extension error", func(t *testing.T) {
+		t.Run("it should throw invalid extension error", func(t *testing.T) {
 			err := ratls_wrapper.RATLSVerifyDer(tt.cert, nil, nil, nil, nil)
 			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_INVALID_EXTENSIONS)
 		})
