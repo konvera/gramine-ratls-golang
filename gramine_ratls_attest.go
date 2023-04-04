@@ -18,12 +18,14 @@ import "C"
 import (
 	"os"
 	"unsafe"
+
+	"github.com/konvera/gramine-ratls-golang/utils"
 )
 
 func getAttestationType() (string, error) {
 	attestationType, err := os.ReadFile("/dev/attestation/attestation_type")
 	if err != nil {
-		PrintDebug("SGX RA-TLS attestation type file '/dev/attestation/attestation_type' not found")
+		utils.PrintDebug("SGX RA-TLS attestation type file '/dev/attestation/attestation_type' not found")
 		return "", RATLS_WRAPPER_ERR_SGX_ATTESTATION_FILE
 	}
 
@@ -32,7 +34,7 @@ func getAttestationType() (string, error) {
 
 func RATLSCreateKeyAndCrtDer() ([]byte, []byte, error) {
 	if ra_tls_attest_create_key_and_crt_der_callback_f == nil {
-		PrintDebug("RA-TLS attest libraries not linked.")
+		utils.PrintDebug("RA-TLS attest libraries not linked.")
 		return nil, nil, RATLS_WRAPPER_ERR_LIB_LOAD_FAILED
 	}
 
@@ -43,7 +45,7 @@ func RATLSCreateKeyAndCrtDer() ([]byte, []byte, error) {
 
 	switch attestationType {
 	case "none":
-		PrintDebug("Skipping certificate creation. Remote attestation type: ", attestationType)
+		utils.PrintDebug("Skipping certificate creation. Remote attestation type: ", attestationType)
 		return nil, nil, RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	case "dcap":
 		var derCrt *C.uchar
@@ -54,17 +56,17 @@ func RATLSCreateKeyAndCrtDer() ([]byte, []byte, error) {
 		ret := C.ra_tls_create_key_and_crt_der_wrapper(ra_tls_attest_create_key_and_crt_der_callback_f, &derKey, &keyLen, &derCrt, &crtLen)
 
 		if ret != 0 {
-			PrintDebug("RATLSCreateKeyAndCrtDer failed with error ", ret)
+			utils.PrintDebug("RATLSCreateKeyAndCrtDer failed with error ", ret)
 			return nil, nil, ErrorCode(ret)
 		}
 
 		derCrtBytes := C.GoBytes(unsafe.Pointer(derCrt), C.int(crtLen))
 		derKeyBytes := C.GoBytes(unsafe.Pointer(derKey), C.int(keyLen))
 
-		PrintDebug("Certificate and key creation succeded.")
+		utils.PrintDebug("Certificate and key creation succeded.")
 		return derKeyBytes, derCrtBytes, nil
 	default:
-		PrintDebug("Certifiate creation with mentioned attestation type not supported.")
+		utils.PrintDebug("Certifiate creation with mentioned attestation type not supported.")
 		return nil, nil, RATLS_WRAPPER_ERR_CERTIFICATE_CREATION_FAILED
 	}
 }
