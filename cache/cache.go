@@ -134,6 +134,9 @@ func (c *Cache) Add(cert []byte, value int) error {
 		return errors.New("not enabled")
 	}
 
+	// remove redundant items
+	c.evict()
+
 	if value != 0 && !c.cacheFailures {
 		utils.PrintDebug("caching of failed values not allowed")
 		return errors.New("failed valued not allowed")
@@ -145,9 +148,6 @@ func (c *Cache) Add(cert []byte, value int) error {
 		utils.PrintDebug("key already exists in cache: ", h)
 		return nil
 	}
-
-	// remove redundant items
-	c.evict()
 
 	// forcefully evict last added item
 	if len(c.queue) == c.capacity {
