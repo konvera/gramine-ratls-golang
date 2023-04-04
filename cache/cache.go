@@ -22,7 +22,6 @@ type Cache struct {
 
 	enabled         bool
 	items           map[string]*Item
-	capacity        int
 	queue           []Item
 	timeoutInterval time.Duration
 	cacheFailures   bool
@@ -34,19 +33,13 @@ func hashCertificate(cert []byte) string {
 }
 
 // NewCache initialises the cache with required arguments
-func NewCache(enabled bool, capacity int, timeoutInterval time.Duration, cacheFailures bool) *Cache {
-	if capacity <= 0 {
-		utils.PrintDebug("zero cache capacity not allowed")
-		return nil
-	}
-
+func NewCache(enabled bool, timeoutInterval time.Duration, cacheFailures bool) *Cache {
 	queue := make([]Item, 0)
 
 	cache := &Cache{
 		items:           make(map[string]*Item),
 		enabled:         enabled,
 		timeoutInterval: timeoutInterval,
-		capacity:        capacity,
 		queue:           queue,
 		cacheFailures:   cacheFailures,
 	}
@@ -66,14 +59,6 @@ func (c *Cache) TimeoutDuration() time.Duration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.timeoutInterval
-}
-
-// Capacity returns the capacity of the cache.
-func (c *Cache) Capacity() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.capacity
 }
 
 // IsFailuresCachingAllowed returns whether cache saves verification failures as well.
@@ -147,12 +132,6 @@ func (c *Cache) Add(cert []byte, value int) error {
 	if _, ok := c.items[h]; ok {
 		utils.PrintDebug("key already exists in cache: ", h)
 		return nil
-	}
-
-	// forcefully evict last added item
-	if len(c.queue) == c.capacity {
-		delete(c.items, c.queue[0].key)
-		c.queue = c.queue[1:]
 	}
 
 	item := Item{

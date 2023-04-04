@@ -120,7 +120,7 @@ var CertCache *cache.Cache
 // InitRATLSLib imports Gramine RA-TLS libraries required to register the callbacks for Quote
 // verification, generation and enclave measurement arguments. It also initialises the
 // cache used for storing certificate verification results.
-func InitRATLSLib(enabled bool, capacity int, timeoutInterval time.Duration, cacheFailures bool) error {
+func InitRATLSLib(enabled bool, timeoutInterval time.Duration, cacheFailures bool) error {
 	// import RA-TLS libraries
 	helper_sgx_urts_lib_name := "libsgx_urts.so"
 	helper_sgx_urts_lib_sym := C.CString("libsgx_urts.so")
@@ -180,7 +180,7 @@ func InitRATLSLib(enabled bool, capacity int, timeoutInterval time.Duration, cac
 	C.ra_tls_set_measurement_callback_wrapper(ra_tls_set_measurement_callback_f)
 
 	// initialise cache
-	CertCache = cache.NewCache(enabled, capacity, timeoutInterval, cacheFailures)
+	CertCache = cache.NewCache(enabled, timeoutInterval, cacheFailures)
 
 	return nil
 }

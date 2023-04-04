@@ -36,7 +36,7 @@ func setup() {
 	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
 
 	// init Gramine RATLS required lib
-	ratls_wrapper.InitRATLSLib(true, 10, time.Hour, false)
+	ratls_wrapper.InitRATLSLib(true, time.Hour, false)
 
 	certFile, err := os.ReadFile("test/tls/tlscert.der")
 	if err != nil {

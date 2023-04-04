@@ -59,7 +59,6 @@ go get github.com/konvera/gramine-ratls-golang
 The wrapper exposes initilisation function: [`InitRATLSLib`](./gramine_ratls_verify.go#L123) which loads the **required** Gramine Remote Attestation libraries and should be called **before** using the RA-TLS functions for certificate creation or verification. It also initialises the in-memory cache and expects following arguments:
 
 - `enabled`: to enable/disable the cache
-- `capacity`: cache capacity
 - `timeoutInterval`: maximum duration after which value is evicted
 - `cacheFailures`: whether to store certificate verification failures
 
@@ -102,7 +101,7 @@ The wrapper utilises official `log` package and uses environment variable `DEBUG
 
 The package provides a simple in-memory [KV store](./cache/cache.go) that can be used to cache certificate verification result to reduce attestation verification latency. Cache package exports following methods:
 
-- `NewCache(enabled bool, capacity int, timeoutInterval time.Duration, cacheFailures bool)`: used to initialise cache with required arguments
+- `NewCache(enabled bool, timeoutInterval time.Duration, cacheFailures bool)`: used to initialise cache with required arguments
 - `Toggle()`: toggle cache support
 - `ToggleFailureCaching()`: cache supports caching of failed certificates as well and can be toggled with this method.
 - `Add(cert []byte)`: adds new item with timeout duration specified during initialisation.

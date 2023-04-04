@@ -69,28 +69,16 @@ func MockDERCertificate() []byte {
 }
 
 func Test_NewCache(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
+	cache = NewCache(true, time.Hour, false)
 
 	assert.NotNil(t, cache)
 	assert.Equal(t, cache.TimeoutDuration(), time.Hour)
 	assert.True(t, cache.IsEnabled())
-	assert.Equal(t, cache.Capacity(), 2)
 	assert.False(t, cache.IsFailuresCachingAllowed())
 }
 
 func Test_Add(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
-
-	t.Run("cache is disabled", func(t *testing.T) {
-		cache.Toggle()
-
-		err := cache.Add(cert, 0)
-		assert.NotNil(t, err)
-
-		_, err = cache.Read(cert)
-
-		assert.NotNil(t, err)
-	})
+	cache = NewCache(true, time.Hour, false)
 
 	t.Run("cache is enabled", func(t *testing.T) {
 		err := cache.Add(cert, 0)
@@ -108,7 +96,7 @@ func Test_Add(t *testing.T) {
 		cert1 := MockDERCertificate()
 		cache.Add(cert1, 0)
 
-		err := cache.Add(cert, 1)
+		err := cache.Add(cert, 0)
 		assert.Nil(t, err)
 
 		ret, err := cache.Read(cert)
@@ -117,23 +105,20 @@ func Test_Add(t *testing.T) {
 		assert.Equal(t, ret, 0)
 	})
 
-	t.Run("capacity is full", func(t *testing.T) {
-		cache.Add(cert, 0)
+	t.Run("cache is disabled", func(t *testing.T) {
+		cache.Toggle()
 
-		cert1 := MockDERCertificate()
-		cert2 := MockDERCertificate()
+		err := cache.Add(cert, 0)
+		assert.NotNil(t, err)
 
-		cache.Add(cert1, 0)
+		_, err = cache.Read(cert)
 
-		cache.Add(cert2, 0)
-
-		_, err := cache.Read(cert)
 		assert.NotNil(t, err)
 	})
 }
 
 func Test_Read(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
+	cache = NewCache(true, time.Hour, false)
 
 	cache.Add(cert, 0)
 
@@ -144,7 +129,7 @@ func Test_Read(t *testing.T) {
 }
 
 func Test_AddItems(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
+	cache = NewCache(true, time.Hour, false)
 
 	cert1 := MockDERCertificate()
 	cert2 := MockDERCertificate()
@@ -162,7 +147,7 @@ func Test_AddItems(t *testing.T) {
 }
 
 func Test_Evict(t *testing.T) {
-	cache = NewCache(true, 2, 2*time.Second, false)
+	cache = NewCache(true, 2*time.Second, false)
 
 	cert1 := MockDERCertificate()
 	cert2 := MockDERCertificate()
@@ -205,7 +190,7 @@ func Test_Evict(t *testing.T) {
 }
 
 func Test_IsEnabled(t *testing.T) {
-	cache = NewCache(false, 2, time.Hour, false)
+	cache = NewCache(false, time.Hour, false)
 
 	assert.False(t, cache.IsEnabled())
 
@@ -214,7 +199,7 @@ func Test_IsEnabled(t *testing.T) {
 }
 
 func Test_ToggleFailureCaching(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
+	cache = NewCache(true, time.Hour, false)
 
 	assert.False(t, cache.IsFailuresCachingAllowed())
 
@@ -244,7 +229,7 @@ func Test_ToggleFailureCaching(t *testing.T) {
 }
 
 func Test_Toggle(t *testing.T) {
-	cache = NewCache(true, 2, time.Hour, false)
+	cache = NewCache(true, time.Hour, false)
 
 	assert.True(t, cache.IsEnabled())
 
