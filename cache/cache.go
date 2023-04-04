@@ -2,7 +2,6 @@ package cache
 
 import (
 	"crypto/sha256"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"math"
@@ -23,100 +22,156 @@ type Cache struct {
 
 	enabled         bool
 	items           map[string]*Item
+	capacity        int
+	queue           []Item
 	timeoutInterval time.Duration
-	evictTimer      *time.Timer
+	cacheFailures   bool
 }
 
-func hashCertificate(cert []byte) (string, error) {
-	certificate, err := x509.ParseCertificate(cert)
-	if err != nil {
-		utils.PrintDebug("Not able to parse certificate")
-		return "", err
+func hashCertificate(cert []byte) string {
+	res := fmt.Sprintf("%x", sha256.Sum256(cert))
+	return res
+}
+
+// NewCache initialises the cache with required arguments
+func NewCache(enabled bool, capacity int, timeoutInterval time.Duration, cacheFailures bool) *Cache {
+	if capacity <= 0 {
+		utils.PrintDebug("zero cache capacity not allowed")
+		return nil
 	}
 
-	res := fmt.Sprintf("%x", sha256.Sum256(certificate.Raw))
-	return res, nil
-}
+	queue := make([]Item, 0)
 
-func NewCache(timeoutInterval time.Duration, enabled bool) *Cache {
 	cache := &Cache{
 		items:           make(map[string]*Item),
 		enabled:         enabled,
 		timeoutInterval: timeoutInterval,
+		capacity:        capacity,
+		queue:           queue,
+		cacheFailures:   cacheFailures,
 	}
-
-	// periodically evict expired items from the cache
-	cache.Evict()
 
 	return cache
 }
 
+// IsEnabled returns whether the cache is enabled or not.
 func (c *Cache) IsEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.enabled
 }
 
+// TimeoutDuration returns the duration after which value is evicted from cache.
 func (c *Cache) TimeoutDuration() time.Duration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.timeoutInterval
 }
 
+// Capacity returns the capacity of the cache.
+func (c *Cache) Capacity() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.capacity
+}
+
+// IsFailuresCachingAllowed returns whether cache saves verification failures as well.
+// Sucessful verification is referred as value `0`.
+func (c *Cache) IsFailuresCachingAllowed() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.cacheFailures
+}
+
+// ToggleFailureCaching toggle fail results caching support
+func (c *Cache) ToggleFailureCaching() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cacheFailures = !c.cacheFailures
+}
+
+// Toggle toggles cache support
 func (c *Cache) Toggle() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.enabled = !c.enabled
 }
 
-func (c *Cache) Evict() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.evictTimer != nil {
-		c.evictTimer.Stop()
+// evict removes redundant elements from the beginning of the queue which have surpassed their
+// expiration duration.
+func (c *Cache) evict() {
+	if len(c.queue) == 0 {
+		return
 	}
 
+	idx := 0
 	now := time.Now().Unix()
-	for key, item := range c.items {
-		if item.expiresAt < now {
-			utils.PrintDebug("Deleting key: ", key)
-			delete(c.items, key)
+
+	for _, item := range c.queue {
+		if item.expiresAt > now {
+			break
 		}
+
+		utils.PrintDebug("deleting key: ", item.key)
+		delete(c.items, item.key)
+		idx++
 	}
 
-	c.evictTimer = time.AfterFunc(c.timeoutInterval, func() {
-		go c.Evict()
-	})
+	c.queue = c.queue[idx:]
 }
 
+// Add adds new item to the cache. New item is added at the back of the queue and if capacity is full,
+// an item from the beginning, i.e. the oldest item is removed from the cache.
 func (c *Cache) Add(cert []byte, value int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if !c.enabled {
-		// return gramine_ratls.CACHE_ERR_NOT_ENABLED
+		utils.PrintDebug("cache not enabled")
 		return errors.New("not enabled")
 	}
 
-	h, err := hashCertificate(cert)
-	if err != nil {
-		return err
+	if value != 0 && !c.cacheFailures {
+		utils.PrintDebug("caching of failed values not allowed")
+		return errors.New("failed valued not allowed")
 	}
 
-	c.items[h] = &Item{
+	h := hashCertificate(cert)
+
+	if _, ok := c.items[h]; ok {
+		utils.PrintDebug("key already exists in cache: ", h)
+		return nil
+	}
+
+	// remove redundant items
+	c.evict()
+
+	// forcefully evict last added item
+	if len(c.queue) == c.capacity {
+		delete(c.items, c.queue[0].key)
+		c.queue = c.queue[1:]
+	}
+
+	item := Item{
 		key:       h,
 		value:     value,
 		expiresAt: time.Now().Add(c.timeoutInterval).Unix(),
 	}
 
+	c.queue = append(c.queue, item)
+	c.items[h] = &item
+
 	return nil
 }
 
+// AddItems add multiple items to the cache. It can be used to initialise the cache with some
+// successful attestations.
 func (c *Cache) AddItems(certs [][]byte) error {
 	if !c.enabled {
-		// return gramine_ratls.CACHE_ERR_NOT_ENABLED
-		return errors.New("not enabled")
+		return errors.New("cache not enabled")
 	}
 
 	// optimistically add all successful certificates
@@ -127,20 +182,19 @@ func (c *Cache) AddItems(certs [][]byte) error {
 	return nil
 }
 
+// Read reads an items's value from the cache and removes any redundant item at the start.
 func (c *Cache) Read(cert []byte) (int, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if !c.enabled {
-		// return gramine_ratls.CACHE_ERR_NOT_ENABLED
-		return math.MinInt32, errors.New("not enabled")
+		return math.MinInt32, errors.New("cache not enabled")
 	}
 
-	h, err := hashCertificate(cert)
-	if err != nil {
-		return math.MinInt32, err
-	}
+	// remove redundant items
+	c.evict()
 
+	h := hashCertificate(cert)
 	item, ok := c.items[h]
 	if !ok {
 		return math.MinInt32, errors.New("not found")

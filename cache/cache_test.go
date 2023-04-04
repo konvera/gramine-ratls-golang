@@ -69,19 +69,71 @@ func MockDERCertificate() []byte {
 }
 
 func Test_NewCache(t *testing.T) {
-	cache = NewCache(time.Hour, true)
+	cache = NewCache(true, 2, time.Hour, false)
+
 	assert.NotNil(t, cache)
+	assert.Equal(t, cache.TimeoutDuration(), time.Hour)
+	assert.True(t, cache.IsEnabled())
+	assert.Equal(t, cache.Capacity(), 2)
+	assert.False(t, cache.IsFailuresCachingAllowed())
 }
 
 func Test_Add(t *testing.T) {
-	cache = NewCache(time.Hour, true)
+	cache = NewCache(true, 2, time.Hour, false)
 
-	err := cache.Add(cert, 0)
-	assert.Nil(t, err)
+	t.Run("cache is disabled", func(t *testing.T) {
+		cache.Toggle()
+
+		err := cache.Add(cert, 0)
+		assert.NotNil(t, err)
+
+		_, err = cache.Read(cert)
+
+		assert.NotNil(t, err)
+	})
+
+	t.Run("cache is enabled", func(t *testing.T) {
+		err := cache.Add(cert, 0)
+		assert.Nil(t, err)
+
+		ret, err := cache.Read(cert)
+
+		assert.Nil(t, err)
+		assert.Equal(t, ret, 0)
+	})
+
+	t.Run("add existing item", func(t *testing.T) {
+		cache.Add(cert, 0)
+
+		cert1 := MockDERCertificate()
+		cache.Add(cert1, 0)
+
+		err := cache.Add(cert, 1)
+		assert.Nil(t, err)
+
+		ret, err := cache.Read(cert)
+
+		assert.Nil(t, err)
+		assert.Equal(t, ret, 0)
+	})
+
+	t.Run("capacity is full", func(t *testing.T) {
+		cache.Add(cert, 0)
+
+		cert1 := MockDERCertificate()
+		cert2 := MockDERCertificate()
+
+		cache.Add(cert1, 0)
+
+		cache.Add(cert2, 0)
+
+		_, err := cache.Read(cert)
+		assert.NotNil(t, err)
+	})
 }
 
 func Test_Read(t *testing.T) {
-	cache = NewCache(time.Hour, true)
+	cache = NewCache(true, 2, time.Hour, false)
 
 	cache.Add(cert, 0)
 
@@ -92,7 +144,7 @@ func Test_Read(t *testing.T) {
 }
 
 func Test_AddItems(t *testing.T) {
-	cache = NewCache(time.Hour, true)
+	cache = NewCache(true, 2, time.Hour, false)
 
 	cert1 := MockDERCertificate()
 	cert2 := MockDERCertificate()
@@ -110,28 +162,50 @@ func Test_AddItems(t *testing.T) {
 }
 
 func Test_Evict(t *testing.T) {
-	cache = NewCache(2*time.Second, true)
+	cache = NewCache(true, 2, 2*time.Second, false)
 
 	cert1 := MockDERCertificate()
 	cert2 := MockDERCertificate()
 
-	cache.Add(cert1, -1)
+	t.Run("should evict one item", func(t *testing.T) {
+		cache.Add(cert1, 0)
 
-	time.Sleep(4 * time.Second)
+		time.Sleep(4 * time.Second)
 
-	cache.Add(cert2, -1)
+		cache.Add(cert2, 0)
 
-	ret, err := cache.Read(cert1)
-	assert.NotNil(t, err)
-	assert.Equal(t, math.MinInt32, ret)
+		ret, err := cache.Read(cert1)
+		assert.NotNil(t, err)
+		assert.Equal(t, math.MinInt32, ret)
 
-	ret, err = cache.Read(cert2)
-	assert.Nil(t, err)
-	assert.Equal(t, -1, ret)
+		ret, err = cache.Read(cert2)
+		assert.Nil(t, err)
+		assert.Equal(t, 0, ret)
+	})
+
+	t.Run("should evict all items", func(t *testing.T) {
+		cache.Add(cert1, 0)
+		cache.Add(cert2, 0)
+
+		time.Sleep(4 * time.Second)
+
+		ret, err := cache.Read(cert1)
+		assert.NotNil(t, err)
+		assert.Equal(t, math.MinInt32, ret)
+
+		_, err = cache.Read(cert2)
+		assert.NotNil(t, err)
+
+		cache.Add(cert, 0)
+		ret, err = cache.Read(cert)
+
+		assert.Nil(t, err)
+		assert.Equal(t, 0, ret)
+	})
 }
 
 func Test_IsEnabled(t *testing.T) {
-	cache = NewCache(time.Hour, false)
+	cache = NewCache(false, 2, time.Hour, false)
 
 	assert.False(t, cache.IsEnabled())
 
@@ -139,8 +213,38 @@ func Test_IsEnabled(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func Test_ToggleFailureCaching(t *testing.T) {
+	cache = NewCache(true, 2, time.Hour, false)
+
+	assert.False(t, cache.IsFailuresCachingAllowed())
+
+	cache.Add(cert, -1)
+
+	_, err := cache.Read(cert)
+	assert.NotNil(t, err)
+
+	cache.ToggleFailureCaching()
+
+	cache.Add(cert, -1)
+
+	ret, err := cache.Read(cert)
+
+	assert.Nil(t, err)
+	assert.Equal(t, ret, -1)
+
+	cache.ToggleFailureCaching()
+
+	cert1 := MockDERCertificate()
+
+	cache.Add(cert1, -1)
+
+	_, err = cache.Read(cert1)
+
+	assert.NotNil(t, err)
+}
+
 func Test_Toggle(t *testing.T) {
-	cache = NewCache(time.Hour, true)
+	cache = NewCache(true, 2, time.Hour, false)
 
 	assert.True(t, cache.IsEnabled())
 
