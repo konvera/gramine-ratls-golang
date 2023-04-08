@@ -1,3 +1,5 @@
+// Package gramine_ratls is a Go wrapper on top of the Gramine RA-TLS library.
+// It provides certificate attestation and verification methods.
 package gramine_ratls
 
 // #cgo LDFLAGS: -ldl
