@@ -28,9 +28,6 @@ var isv_prod_id []byte
 var isv_svn []byte
 
 func setup() {
-	// set DEBUG flag for logs
-	os.Setenv("DEBUG", "1")
-
 	// set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable because
 	// the unit tests are working with a potentially out of date attestation quote
 	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")

@@ -81,10 +81,10 @@ func main() {
     // Certificate verification
     err := gramine_ratls.RATLSVerifyDer(cert, mrenclave, mrsigner, isv_prod_id, isv_svn)
     if err != nil {
-     fmt.Printf("Certificate verification failed: %v\n", err)
+        fmt.Printf("Certificate verification failed: %v\n", err)
     } else {
-    fmt.Println("Certificate verified successfully.")
-}
+        fmt.Println("Certificate verified successfully.")
+    }
 
 }
 ```
@@ -95,7 +95,7 @@ More info about examples and usage can be found at the [tests](./gramine_ratls_t
 
 ## Logging
 
-The wrapper utilises official `log` package and uses environment variable `DEBUG` to output logs.
+The wrapper utilises official `log` package and uses environment variable `DEBUG` at build time to output logs.
 
 ## Cache
 

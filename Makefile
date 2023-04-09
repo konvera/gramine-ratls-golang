@@ -1,7 +1,7 @@
 .PHONY: test lint lint-strict
 
 test:
-	go test ./...
+	DEBUG=1 go test ./...
 
 lint:
 	gofmt -d ./
