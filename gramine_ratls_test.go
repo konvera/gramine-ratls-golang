@@ -28,15 +28,13 @@ var isv_prod_id []byte
 var isv_svn []byte
 
 func setup() {
-	// set DEBUG flag for logs
-	os.Setenv("DEBUG", "1")
-
 	// set `RA_TLS_ALLOW_OUTDATED_TCB_INSECURE` environment variable because
 	// the unit tests are working with a potentially out of date attestation quote
 	os.Setenv("RA_TLS_ALLOW_OUTDATED_TCB_INSECURE", "1")
 
-	// init Gramine RATLS required lib
-	ratls_wrapper.InitRATLSLib(true, time.Hour, false)
+	// init Gramine RATLS required lib, and disable cache to test different scenarios
+	// TODO: add benchmark test for cache perf
+	ratls_wrapper.InitRATLSLib(false, time.Hour, false)
 
 	certFile, err := os.ReadFile("test/tls/tlscert.der")
 	if err != nil {
@@ -182,7 +180,7 @@ func Test_RATLSVerifyDer_IncorrectMeasurements(t *testing.T) {
 	}{
 		{
 			name:        "it should throw Certificate verfication failed error due to wrong measurements",
-			mrenclave:   []byte{1, 2},
+			mrenclave:   []byte{1, 10},
 			mrsigner:    nil,
 			isv_prod_id: nil,
 			isv_svn:     nil,
@@ -210,10 +208,11 @@ func Test_RATLSVerifyDer_IncorrectMeasurements(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for _, test := range tests {
+		tt := test
 		t.Run(tt.name, func(t *testing.T) {
 			err := ratls_wrapper.RATLSVerifyDer(certDer, tt.mrenclave, tt.mrsigner, tt.isv_prod_id, tt.isv_svn)
-			assert.Equal(t, err, ratls_wrapper.MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
+			assert.Equal(t, ratls_wrapper.MBEDTLS_ERR_X509_CERT_VERIFY_FAILED, err)
 		})
 	}
 }

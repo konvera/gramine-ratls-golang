@@ -1,3 +1,4 @@
+// Package cache provides a simple KV store to cache certificate verification results.
 package cache
 
 import (

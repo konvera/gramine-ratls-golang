@@ -1,5 +1,3 @@
-// Error codes are standard MBEDTLS error code found here:
-// https://github.com/Mbed-TLS/mbedtls/blob/development/include/mbedtls/x509.h
 package gramine_ratls
 
 import (
@@ -8,6 +6,8 @@ import (
 
 type ErrorCode int
 
+// Error codes are standard MBEDTLS error code found here:
+// https://github.com/Mbed-TLS/mbedtls/blob/development/include/mbedtls/x509.h
 const (
 	// Fatal error occured, not able to load RATLS libraries
 	RATLS_WRAPPER_ERR_LIB_LOAD_FAILED ErrorCode = -0x0001
@@ -29,9 +29,6 @@ const (
 
 	// Certificate decoding failed
 	RATLS_WRAPPER_ERR_CERT_DECODE_FAILED ErrorCode = -0x0007
-
-	// Cache not enabled
-	CACHE_ERR_NOT_ENABLED ErrorCode = -0x0008
 
 	// Entropy Source Failed
 	MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED ErrorCode = -0x0034
@@ -61,7 +58,7 @@ const (
 	MBEDTLS_ERR_PK_ALLOC_FAILED ErrorCode = -0x3F80
 )
 
-// Message returns the status code message
+// Error Message returns the status code message
 func (o ErrorCode) Error() string {
 	switch o {
 	case RATLS_WRAPPER_ERR_LIB_LOAD_FAILED:
@@ -84,9 +81,6 @@ func (o ErrorCode) Error() string {
 
 	case RATLS_WRAPPER_ERR_CERT_DECODE_FAILED:
 		return fmt.Sprintf("failed to decode PEM certificate: %d", o)
-
-	case CACHE_ERR_NOT_ENABLED:
-		return fmt.Sprintf("cache not enabled: %d", o)
 
 	case MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED:
 		return fmt.Sprintf("Entropy Source Failed: %d", o)
